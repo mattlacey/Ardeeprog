@@ -35,12 +35,23 @@
 #define EEPROM_OE_N    9 // Output Enable
 #define EEPROM_WE_N    10 // Write Enable
 
+// basic scope loop
+/*
+ * 00000008  4240                                    clr.w   d0
+ * 0000000A  103C 0006                               move.b  #6,d0
+ * 0000000E  4E71                                    nop
+ * 00000010  60F6                                    bra.s   $0008
+ * 
+ */
+
 byte testROM [] =
 {
-  0x55, 0xaa, 0x55, 0xaa,
-  0x42, 0x42, 0x42, 0x42,
-  0x55, 0xaa, 0x55, 0xaa,
-  0x42, 0x42, 0x42, 0x42
+  0x00, 0x00, 0x00, 0x00,   // SP
+  0x00, 0x00, 0x00, 0x10,   // Initial PC
+  0x42, 0x40,
+  0x10, 0x3C, 0x00, 0x06,
+  0x4E, 0x71,
+  0x60, 0xF6
 };
 
 int dataLength = sizeof(testROM);
@@ -71,43 +82,77 @@ void setup()
   pinMode(EEPROM_OE_N, OUTPUT);
 
   digitalWrite(EEPROM_OE_N, HIGH);
-
-  Serial.println("ROM Length:");
-  Serial.println(dataLength);
-  Serial.println("===========");
-  Serial.println("ROM to write");
-
-  for (int i = 0; i < dataLength; i++)
-  {
-    if(i % 4 == 0)
-      Serial.println("");
-
-    Serial.print(testROM[i], HEX);
-  }
-
-/*
-  Serial.println("===========");
-  Serial.println("Writing...");
-
-  //Serial.print("Disable protection in: ");
-  //timer(5);
-  //disableWriteProtect();
-*/
-  Serial.print("Writing ROM in: ");
-  timer(3);
-  writeROM();
-
-  Serial.print("Staring read in: ");
-  timer(3);
-
-  setReadMode();
 }
+
+int incoming = 100;
 
 void loop()
 {
-  delay(200);
-  readEEPROM();
-  setAddress(0x0000);
+  if(incoming == 100)
+  {
+    printMenu();
+    incoming = 99;  
+  }
+  
+  if(Serial.available() > 0)
+  {
+    incoming = Serial.parseInt();
+
+    if (Serial.read() == '\n')
+    {
+      if(incoming == 1)
+      {
+        Serial.println("ROM Length:");
+        Serial.println(dataLength);
+        Serial.println("===========");
+        Serial.println("ROM to write");
+
+        for (int i = 0; i < dataLength; i++)
+        {
+          if(i % 8 == 0)
+            Serial.println("");
+
+          if(!testROM[i])
+            Serial.print("00");
+          else
+          {
+            if(testROM[i] < 0x10)
+              Serial.print("0");
+
+              Serial.print(testROM[i], HEX);
+          }
+
+          Serial.print("  ");
+        }
+      }
+      else if(incoming == 2 || incoming == 3)
+      {
+        Serial.print("Writing ROM in: ");
+        timer(3);
+        writeROM(incoming == 2);
+      }
+      else if(incoming == 4)
+      {
+        Serial.print("Reading ROM in: ");
+        timer(3);
+        readEEPROM();
+      }
+      else if(incoming == 9)
+      {
+        Serial.print("Disable protection in: ");
+        timer(5);
+        disableWriteProtect();
+      }
+
+      Serial.print("\n\n\n");
+      incoming = 100;    
+    }
+  }
+}
+
+void printMenu()
+{
+  Serial.println("Choose an operation:\n--------------------\n1. Display ROM Image\n2. Write EEPROM (EVEN)\n3. Write EEPROM (ODD)\n4. Read EEPROM\n9. Disable Write Protect\n");
 }
 
 void timer(int count)
@@ -115,10 +160,15 @@ void timer(int count)
   for (int i = count; i; i--)
   {
     Serial.print(i);
-    Serial.print("... ");
-    delay(1000);
-    Serial.println("");
+    Serial.print(".");
+    delay(333);
+    Serial.print(".");
+    delay(333);
+    Serial.print(". ");
+    delay(334);
   }
+
+  Serial.println("");
 }
 
 void readEEPROM()
@@ -129,6 +179,8 @@ void readEEPROM()
   }
 
   readROM();
+
+  setAddress(0x0000);
 }
 
 void setReadMode()
@@ -170,13 +222,21 @@ byte readROM()
   }
 }
 
-void writeROM()
+void writeROM(bool even)
 {
-  for (int i = 0; i < dataLength; i++)
+  for (int i = 0; i < dataLength / 2; i ++)
   {
-    writeByteToAddress(testROM[i], i);
+    writeByteToAddress(testROM[(even ? i : i + 1)], i);
+    /*
+    Serial.print(i);
+    Serial.print(": ");
+    Serial.println(testROM[(even ? i * 2 : (i * 2) + 1)], HEX);
+    */
+    
     delay(10);
   }
+
+  Serial.println("Write Complete\n");
 }
 
 void setAddress(short address)

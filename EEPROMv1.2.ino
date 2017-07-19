@@ -19,17 +19,21 @@
 #define digitalState(P)((uint8_t)isHigh(P))
 
 
+// As per hardware board, v 1.0
+
+
 // PIN definitions for the shift register controls
+#define OE_N    2 // Output enable (active low - address chips always grounded)
+#define STCP    3 // Storage clock (RCLK)
+#define SHCP    4 // Shift clock  (SRCLK)
 #define MR_N    5 // Master reset (active low)
-#define SHCP    6 // Shift clock
-#define STCP    2 // Storage clock
-#define OE_N    3 // Output enable (active low - address chips always grounded)
-#define S_DATA  4 // Serial data
+#define S_DATA  6 // Serial data
+
 
 // PIN definition for the EEPROM controls
-#define EEPROM_WE_N    8 // Write Enable
+#define EEPROM_CE_N    8 // Chip Enable
 #define EEPROM_OE_N    9 // Output Enable
-#define EEPROM_CE_N    10 // Chip Enable?
+#define EEPROM_WE_N    10 // Write Enable
 
 byte testROM [] =
 {
@@ -71,7 +75,7 @@ void setup()
   Serial.println("ROM Length:");
   Serial.println(dataLength);
   Serial.println("===========");
-  Serial.println("ROM Dump");
+  Serial.println("ROM to write");
 
   for (int i = 0; i < dataLength; i++)
   {
@@ -88,15 +92,22 @@ void setup()
   //Serial.print("Disable protection in: ");
   //timer(5);
   //disableWriteProtect();
-
+*/
   Serial.print("Writing ROM in: ");
   timer(3);
   writeROM();
-*/
+
   Serial.print("Staring read in: ");
   timer(3);
 
   setReadMode();
+}
+
+void loop()
+{
+  delay(200);
+  readEEPROM();
+  setAddress(0x0000);
 }
 
 void timer(int count)
@@ -108,13 +119,6 @@ void timer(int count)
     delay(1000);
     Serial.println("");
   }
-}
-
-void loop()
-{
-  delay(200);
-  readEEPROM();
-  setAddress(0xffff);
 }
 
 void readEEPROM()
@@ -179,11 +183,10 @@ void setAddress(short address)
 {
   Serial.println(address);
   digitalLow(STCP);
+  shiftOutFast(0);
   shiftOutFast(address >> 8);
   shiftOutFast(address & 0xff);
-  shiftOutFast(0);
   digitalHigh(STCP);
-  
 }
 
 void disableWriteProtect()
@@ -201,9 +204,9 @@ void writeByteToAddress(char byte, int address)
   digitalHigh(OE_N);
     
   digitalLow(STCP);
+  shiftOutFast(byte);
   shiftOutFast(address >> 8);
   shiftOutFast(address & 0xff);
-  shiftOutFast(byte);
   digitalHigh(STCP);
   
   delayMicroseconds(10);
